@@ -1,0 +1,354 @@
+
+IMP queries
+mysql> show procedure status where db='DB_Name';
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+PL/SQL
+14 a. Consider table Stud(Roll, Att,Status)
+Write a PL/SQL block for following requirement and handle the exceptions. Roll no. of student 
+will be entered by user. Attendance of roll no. entered by user will be checked in Stud table. If 
+attendance is less than 75% then display the message “Term not granted” and set the status in 
+stud table as “D”. Otherwise display message “Term granted” and set the status in stud table as 
+“ND”
+create table stud(RollNo int primary key, attendance int,status varchar(5));
+insert into stud(RollNo,attendance) values(1,150),(2,200),(3,80),(4,70),(5,180);
+select * from stud;
+
+ delimiter //
+ create procedure check_att(in roll int)
+ begin
+ declare att int;
+ declare total int;
+ declare exit handler for not found select 'Data not found!!!' message;
+    set total=200;
+    select attendance into att from stud where RollNo=roll;
+    if ((att/total)*100)>=75 then
+    update stud set status='ND' where RollNo=roll;
+    select 'Term Granted' Message;
+    else
+    update stud set status='D' where RollNo=roll;
+    select 'Term Not Granted' Message;
+    end if;
+    end;
+    //
+ delimiter ;
+
+
+14 b Write a PL/SQL block for following requirement using user defined exception handling. The 
+account_master table records the current balance for an account, which is updated whenever, any 
+deposits or withdrawals takes place. If the withdrawal attempted is more than the current balance 
+held in the account. The user defined exception is raised, displaying an appropriate message. 
+Write a PL/SQL block for above requirement using user defined exception handling.
+
+Answer:
+
+ create table account_master(ID int primary key,Current_balance int);
+insert into account_master values(1,10000),(2,5000),(3,60000);
+
+delimiter //
+create procedure withdraw(in acc_id int,in amt int)
+begin
+declare bal int;
+declare sp condition for sqlstate '45000';
+select Current_balance into bal from account_master where     ID=acc_id;
+if bal<amt then
+signal sqlstate '45000'
+set message_text='NotEnoughBalance';
+else
+set bal = bal-amt;
+update account_master set Current_balance=bal where
+ID=acc_id;
+end if;
+end;
+//
+
+create procedure deposit(in acc_id int,in amt int)
+begin
+declare bal int;
+select current_balance into bal from account_master where ID=acc_id;
+update account_master set current_balance=bal+amt where ID=acc_id;
+end;
+//
+call withdraw(1,2000);
+//
+select * from account_master;
+//
+
+
+15A)Write an SQL code block these raise a user defined exception where business rule is voilated. BR for client_ master table specifies when the value of bal_due field is less than 0 
+handle the exception.
+
+create table client_master (c_id int, bal_due int);
+insert into client_master values (1,-250), (2,200);
+
+
+delimiter //
+create procedure check_br(in uid int)
+begin
+declare temp_bal int;
+declare sp condition for sqlstate'45000';
+select bal_due into temp_bal from client_master where c_id=uid;
+if temp_bal<0 then
+signal sqlstate '45000'
+set message_text='BR violated';
+else
+select 'BR not violated' Message;
+end if;
+end
+//
+
+call check_br(2);
+//
+
+call check_br(1);
+//
+
+15b Write an SQL code block
+Borrow(Roll_no, Name, DateofIssue, NameofBook, Status)
+Fine(Roll_no,Date,Amt)
+Accept roll_no & name of book from user. Check the number of days (from date of issue), if 
+days are between 15 to 30 then fine amount will be Rs 5per day. If no. of days>30, per day fine 
+will be Rs 50 per day & for days less than 30, Rs. 5 per day. After submitting the book, status 
+will change from I to R. If condition of fine is true, then details will be stored into fine table. 
+Also handles the exception by named exception handler or user define exception handler.
+
+Delimiter //
+create procedure Calculate_fine(in roll int)
+begin
+declare fine_amt int;
+declare no_of_days int;
+declare issue_date date;
+select DateofIssue into issue_date from borrower where Roll_no=roll;
+select datediff(curdate(),issue_date) into no_of_days;
+if no_of_days>15 and no_of_days<=30 then
+set fine_amt=no_of_days*5;
+elseif no_of_days>30 then
+set fine_amt=(no_of_days-30)*50+30*5;
+else
+set fine_amt=0;
+end if;
+insert into fine values(roll,curdate(),fine_amt);
+update borrower set Status='R' where Roll_no=roll;
+end;
+//
+
+Cursor
+16a
+
+ delimiter //
+ create procedure check_salary()
+ begin
+ declare temp_emp int;
+ declare temp_dno int;
+ declare temp_salary int;
+ declare avg_salary int;
+ declare temp_dno_dept_salary int;
+ declare ec boolean;
+ declare cur1 cursor for select avg(salary),dno from emp group by dno;
+declare continue handler for not found set ec=true;
+open cur1;
+ l1:loop
+  fetch cur1 into temp_salary,temp_dno;
+  insert into dept_salary values(temp_salary,temp_dno);
+  if ec then
+  close cur1;
+  leave l1;
+  end if;
+  end loop l1;
+  end
+  //
+
+16b Organization has decided to increase the salary of employees by 10% of existing salary, who 
+are having salary less than average salary of organization, Whenever such salary updates takes 
+place, a record for the same is maintained in the increment_salary table.
+
+create table salary (emp_id int, salary int);
+insert into salary values (1,1000), (2,5000), (3,1500);
+create table incr_salary (id int, salary int);
+
+delimiter //
+create procedure inc_salary()
+begin
+declare temp_salary int;
+declare temp_id int;
+declare avg_salary int;
+declare exitcond boolean;
+declare cur cursor for select emp_id from salary;
+declare cur2 cursor for select salary from salary;
+declare continue handler for not found set exitcond=true;
+select avg(salary) into avg_salary from salary;
+open cur;
+open cur2;
+l1:loop
+fetch cur into temp_id;
+fetch cur2 into temp_salary;
+if(temp_salary<avg_salary) then
+set temp_salary=temp_salary+temp_salary*0.1;
+insert into incr_salary values(temp_id,temp_salary);
+end if;
+if exitcond then
+close cur;
+close cur2;
+leave l1;
+end if;
+end loop l1;
+end
+//
+
+call inc_salary();
+select*from incr_salary;
+
+Q17 b]-- Write a PL/SQL block of code using parameterized Cursor, that will merge the data available 
+-- in the newly created table N_RollCall with the data available in the table O_RollCall. If the 
+-- data in the first table already exist in the second table then that data should be skipped. output:
+
+create table n_rollcall (roll int, name varchar(10));
+insert into n_rollcall values (2,'vishal'), (5,'pratik'), (6,'parth');
+
+create table o_rollcall (roll int, name varchar(10));
+insert into o_rollcall values (2,'vishal'), (4,'hettik'), (3,'kartik'), (1,'deepak'), (5,'pratik');
+
+delimiter $
+create procedure p3(in r1 int)
+begin
+declare r2 int;
+declare exit_loop boolean;
+declare c1 cursor for select roll from o_rollcall where roll>r1;
+declare continue handler for not found set exit_loop=true;
+open c1;
+loop1:loop
+fetch c1 into r2;
+if not exists(select * from n_rollcall where roll=r2)
+then
+insert into n_rollcall select * from o_rollcall where roll=r2;
+end if;
+if exit_loop
+then
+close c1;
+leave loop1;
+end if;
+end loop loop1;
+end;
+$
+
+call p3(2);
+select*from n_rollcall;
+
+17c)
+Write the PL/SQL block for following requirements using parameterized Cursor: Consider table EMP(e_no, d_no, Salary), 
+department wise average salary should be inserted into new table dept_salary(d_no, Avg_salary)
+
+
+create table Emp(
+e_no int Primary Key,
+d_no int ,
+salary int);
+
+
+
+create table dept_salary(
+d_no int primary key,
+Avg_Salary int);
+
+
+insert into Emp values (1,10,10000),(2,10,30000),(3,20,10400),(4,20,10000),(5,20,3000),(6,30,1500);
+
+DELIMITER $
+create procedure prod()
+BEGIN
+DECLARE TEMP_no int;
+DECLARE EXITCONDITION BOOLEAN;
+DECLARE cur1 cursor for select d_no from Emp;
+DECLARE continue handler for not found set EXITCONDITION = TRUE;
+open cur1;
+L1:Loop
+Fetch cur1 into TEMP_no;
+if not exists (Select * from dept_salary where d_no=TEMP_no) then
+insert into dept_salary select d_no,avg(salary) FROM Emp group by(d_no)
+having( d_no=Temp_no) ;
+END if;
+IF EXITCONDITION THEN
+close cur1;
+LEAVE L1;
+end if;
+end Loop;
+end;
+$
+
+
+call prod;
+select * from dept_salary;
+$
+
+
+
+
+
+18A
+delimiter //
+create trigger after_delete
+after delete on client_master
+for each row
+begin
+insert into audit_table
+set action='DELETE',
+id=old.id,
+data=old.data;
+end
+//
+
+delimiter //
+create trigger after_update
+after update on client_master
+for each row
+begin
+insert into audit_table
+set action='UPDATE',
+id=old.id,
+data=old.data;
+end
+//
+
+
+18B
+Write a before trigger for Insert, update event considering following requirement: 
+Emp(e_no, e_name, salary) I) Trigger action should be initiated when salary is tried to be 
+inserted is less than Rs. 50,000/- II) Trigger action should be initiated when salary is tried to be 
+updated for value less than Rs. 50,000/- Action should be rejection of update or Insert 
+operation by displaying appropriate error message. Also the new values expected to be inserted 
+will be stored in new table Tracking(e_no, salary).
+
+create table Emp(e_no integer primary key not null, e_name text, salary integer);
+
+create table tracking(e_no integer, salary integer);
+
+delimiter //
+create trigger after_insert
+after insert
+on Emp
+for each row
+begin
+if(new.salary < 50000) then
+signal sqlstate '45000' set message_text ='Rejected!!!';
+end if;
+insert into tracking
+set e_no = new.e_no, salary = new.salary;
+end;
+//
+
+insert into Emp values(2001, 'sushant',40000)//;
+ERROR 1644 (45000): Rejected!!!
+
+insert into Emp values(2002, 'shweta',55000)//;
+Query OK, 1 row affected (0.01 sec)
+
+
+insert into Emp values(2004, 'sriya',54000)//;
+Query OK, 1 row affected (0.01 sec)
+
+
+insert into Emp values(2006, 'kim',15000)//;
+ERROR 1644 (45000): Rejected!!!
+
+select * from Emp;
